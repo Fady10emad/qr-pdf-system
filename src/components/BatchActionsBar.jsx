@@ -6,7 +6,6 @@ import {
   Trash2,
   Printer,
   Download,
-  Filter,
 } from 'lucide-react';
 
 export const BatchActionsBar = ({
@@ -20,8 +19,10 @@ export const BatchActionsBar = ({
   onClearAll,
   onPrintSelected,
   onDownloadSelectedZip,
+  t,
 }) => {
   const allSelected = totalCount > 0 && selectedCount === totalCount;
+  const bt = t.batch;
 
   return (
     <div className="batch-bar-container">
@@ -31,16 +32,16 @@ export const BatchActionsBar = ({
           type="button"
           className="btn-select-toggle"
           onClick={allSelected ? onDeselectAll : onSelectAll}
-          title={allSelected ? 'Deselect all' : 'Select all'}
+          title={allSelected ? bt.deselectAll : bt.selectAll}
         >
           {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
-          <span>{allSelected ? 'Deselect All' : 'Select All'}</span>
+          <span>{allSelected ? bt.deselectAll : bt.selectAll}</span>
         </button>
 
         <span className="batch-counter">
-          {totalCount} {totalCount === 1 ? 'PDF' : 'PDFs'}
+          {totalCount} {totalCount === 1 ? bt.pdf : bt.pdfs}
           {selectedCount > 0 && (
-            <span className="selected-tag">({selectedCount} selected)</span>
+            <span className="selected-tag">({selectedCount} {bt.selected})</span>
           )}
         </span>
       </div>
@@ -51,7 +52,7 @@ export const BatchActionsBar = ({
         <input
           type="text"
           className="search-input"
-          placeholder="Filter PDFs by filename..."
+          placeholder={bt.searchPlaceholder}
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
         />
@@ -74,25 +75,25 @@ export const BatchActionsBar = ({
               type="button"
               className="btn btn-secondary btn-sm"
               onClick={onPrintSelected}
-              title="Print stickers for selected items"
+              title={bt.print}
             >
-              <Printer size={14} /> Print ({selectedCount})
+              <Printer size={14} /> {bt.print} ({selectedCount})
             </button>
             <button
               type="button"
               className="btn btn-primary btn-sm"
               onClick={onDownloadSelectedZip}
-              title="Download selected QR codes as ZIP"
+              title={bt.zip}
             >
-              <Download size={14} /> ZIP ({selectedCount})
+              <Download size={14} /> {bt.zip} ({selectedCount})
             </button>
             <button
               type="button"
               className="btn btn-danger btn-sm"
               onClick={onDeleteSelected}
-              title="Delete selected items"
+              title={bt.delete}
             >
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> {bt.delete}
             </button>
           </>
         )}
@@ -102,9 +103,9 @@ export const BatchActionsBar = ({
             type="button"
             className="btn-ghost-danger"
             onClick={onClearAll}
-            title="Clear all generated QR codes"
+            title={bt.clearHistory}
           >
-            Clear History
+            {bt.clearHistory}
           </button>
         )}
       </div>

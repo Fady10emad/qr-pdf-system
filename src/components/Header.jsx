@@ -1,11 +1,14 @@
 import React from 'react';
-import { QrCode, Cloud, Printer, Download } from 'lucide-react';
+import { QrCode, Cloud, Printer, Download, Globe } from 'lucide-react';
 
 export const Header = ({
   onOpenPrintSheet,
   onDownloadAllZip,
   totalItems,
   selectedCount,
+  language,
+  onToggleLanguage,
+  t,
 }) => {
   return (
     <header className="app-header">
@@ -18,10 +21,10 @@ export const Header = ({
           </div>
           <div className="brand-text">
             <div className="brand-title-row">
-              <h1 className="brand-title">PDF QR Studio</h1>
+              <h1 className="brand-title">{t.brand.title}</h1>
               <span className="version-badge">v1.0</span>
             </div>
-            <p className="brand-tagline">Permanent & Non-Expiring PDF QR Generator</p>
+            <p className="brand-tagline">{t.brand.tagline}</p>
           </div>
         </div>
 
@@ -29,12 +32,23 @@ export const Header = ({
           {/* Permanent Cloud Active Indicator */}
           <div
             className="status-pill connected"
-            title="Connected to Supabase Cloud Storage. All QR codes are permanent and non-expiring."
+            title={t.brand.cloudActive}
           >
             <span className="pulse-dot green"></span>
             <Cloud size={16} />
-            <span className="status-label">Permanent Cloud Active</span>
+            <span className="status-label">{t.brand.cloudActive}</span>
           </div>
+
+          {/* Language Switcher */}
+          <button
+            type="button"
+            className="btn btn-secondary btn-lang-toggle"
+            onClick={onToggleLanguage}
+            title={language === 'en' ? 'التبديل إلى اللغة العربية' : 'Switch to English'}
+          >
+            <Globe size={16} className="lang-icon" />
+            <span className="lang-label">{language === 'en' ? 'العربية' : 'English'}</span>
+          </button>
 
           {/* Batch Print Button */}
           {totalItems > 0 && (
@@ -42,10 +56,10 @@ export const Header = ({
               type="button"
               className="btn btn-secondary"
               onClick={onOpenPrintSheet}
-              title="Print QR sticker sheet (A4 label sheet)"
+              title={t.brand.printLabels}
             >
               <Printer size={18} />
-              <span className="btn-text">Print Labels</span>
+              <span className="btn-text">{t.brand.printLabels}</span>
               {selectedCount > 0 && <span className="action-counter">{selectedCount}</span>}
             </button>
           )}
@@ -56,10 +70,10 @@ export const Header = ({
               type="button"
               className="btn btn-primary"
               onClick={onDownloadAllZip}
-              title="Download all QR codes as a ZIP package"
+              title={t.brand.downloadAllZip}
             >
               <Download size={18} />
-              <span className="btn-text">Download All (ZIP)</span>
+              <span className="btn-text">{t.brand.downloadAllZip}</span>
             </button>
           )}
         </div>

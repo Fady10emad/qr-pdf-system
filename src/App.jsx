@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import {
-  Header,
-} from './components/Header';
+import { Header } from './components/Header';
 import { DropZone } from './components/DropZone';
 import { QRStylerBar } from './components/QRStylerBar';
 import { QRCard } from './components/QRCard';
@@ -12,18 +10,46 @@ import { PrintSheetModal } from './components/PrintSheetModal';
 import {
   getHistory,
   saveItemToHistory,
-  removeItemFromHistory,
   clearHistory,
   uploadPdf,
+  deletePdf,
+  deleteMultiplePdfs,
 } from './services/storageService';
 import { downloadItemsAsZip } from './utils/zipExport';
 import { createSamplePdfFile } from './utils/demoPdf';
-import { QrCode, FileText, Sparkles, Layers, ShieldCheck, CheckCircle } from 'lucide-react';
+import { translations } from './utils/translations';
+import { QrCode } from 'lucide-react';
 
 export function App() {
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Language State: 'en' or 'ar'
+  const [language, setLanguage] = useState(() => {
+    try {
+      return localStorage.getItem('pdf_qr_lang') || 'en';
+    } catch {
+      return 'en';
+    }
+  });
+
+  const t = translations[language] || translations.en;
+
+  // Set RTL / LTR dynamically on the document root
+  useEffect(() => {
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = language;
+    try {
+      localStorage.setItem('pdf_qr_lang', language);
+    } catch (e) {
+      console.warn(e);
+    }
+  }, [language]);
+
+  const handleToggleLanguage = () => {
+    setLanguage((prev) => (prev === 'en' ? 'ar' : 'en'));
+  };
 
   // UI Modals
   const [isPrintSheetOpen, setIsPrintSheetOpen] = useState(false);
@@ -48,7 +74,6 @@ export function App() {
     setItems(list);
   }, []);
 
-
   // Trigger celebration confetti
   const triggerConfetti = () => {
     try {
@@ -69,27 +94,24 @@ export function App() {
 
     setIsUploading(true);
 
-    // Initialize progress indicators
     const initialProgress = files.map((file) => ({
       name: file.name,
       progress: 0,
       status: 'pending',
-      statusMessage: 'Starting upload...',
+      statusMessage: t.dropzone.uploading,
       errorMessage: null,
     }));
     setUploadingProgress(initialProgress);
 
     const newlyCreated = [];
 
-    // Process files
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
-      // Update progress to uploading
       setUploadingProgress((prev) =>
         prev.map((item, idx) =>
           idx === i
-            ? { ...item, status: 'uploading', statusMessage: 'Uploading to permanent cloud...' }
+            ? { ...item, status: 'uploading', statusMessage: t.dropzone.uploading }
             : item
         )
       );
@@ -106,11 +128,10 @@ export function App() {
         newlyCreated.push(result);
         saveItemToHistory(result);
 
-        // Mark file as done
         setUploadingProgress((prev) =>
           prev.map((item, idx) =>
             idx === i
-              ? { ...item, status: 'done', progress: 100, statusMessage: 'Done!' }
+              ? { ...item, status: 'done', progress: 100, statusMessage: t.dropzone.qrGenerated }
               : item
           )
         );
@@ -122,7 +143,7 @@ export function App() {
               ? {
                   ...item,
                   status: 'error',
-                  errorMessage: err.message || 'Upload failed',
+                  errorMessage: err.message || t.dropzone.uploadFailed,
                 }
               : item
           )
@@ -130,7 +151,6 @@ export function App() {
       }
     }
 
-    // Refresh history
     setItems(getHistory());
     setIsUploading(false);
 
@@ -160,26 +180,26 @@ export function App() {
     setSelectedIds([]);
   };
 
-  // Delete handlers
-  const handleDeleteItem = (id) => {
-    const updated = removeItemFromHistory(id);
+  // Delete handlers (with cloud delete)
+  const handleDeleteItem = async (id) => {
+    const target = items.find((x) => x.id === id);
+    const updated = await deletePdf(target);
     setItems(updated);
     setSelectedIds((prev) => prev.filter((x) => x !== id));
   };
 
-  const handleDeleteSelected = () => {
-    if (window.confirm(`Delete ${selectedIds.length} selected QR code(s)?`)) {
-      let updated = items;
-      selectedIds.forEach((id) => {
-        updated = removeItemFromHistory(id);
-      });
+  const handleDeleteSelected = async () => {
+    if (window.confirm(t.card.confirmDeleteMultiple)) {
+      const targets = items.filter((x) => selectedIds.includes(x.id));
+      const updated = await deleteMultiplePdfs(targets);
       setItems(updated);
       setSelectedIds([]);
     }
   };
 
-  const handleClearAll = () => {
-    if (window.confirm('Clear all generated QR codes?')) {
+  const handleClearAll = async () => {
+    if (window.confirm(t.card.confirmClearAll)) {
+      await deleteMultiplePdfs(items);
       clearHistory();
       setItems([]);
       setSelectedIds([]);
@@ -208,17 +228,19 @@ export function App() {
     : items;
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${language === 'ar' ? 'rtl-layout' : 'ltr-layout'}`}>
       {/* Top Navigation */}
       <Header
         onOpenPrintSheet={handlePrintSheet}
         onDownloadAllZip={handleDownloadZipAll}
         totalItems={items.length}
         selectedCount={selectedIds.length}
+        language={language}
+        onToggleLanguage={handleToggleLanguage}
+        t={t}
       />
 
       <main className="main-content">
-
         {/* Upload Drop Zone */}
         <DropZone
           onFilesSelected={handleFilesSelected}
@@ -226,12 +248,14 @@ export function App() {
           uploadingProgress={uploadingProgress}
           onGenerateDemoPdf={handleGenerateDemoPdf}
           onClearProgress={() => setUploadingProgress([])}
+          t={t}
         />
 
         {/* QR Styler Controls Bar */}
         <QRStylerBar
           styleConfig={styleConfig}
           onChangeStyle={setStyleConfig}
+          t={t}
         />
 
         {/* Generated Cards Section */}
@@ -248,6 +272,7 @@ export function App() {
               onClearAll={handleClearAll}
               onPrintSelected={handlePrintSheet}
               onDownloadSelectedZip={handleDownloadZipAll}
+              t={t}
             />
           )}
 
@@ -263,18 +288,19 @@ export function App() {
                   onToggleSelect={handleToggleSelect}
                   onDelete={handleDeleteItem}
                   onPreview={(previewTarget) => setPreviewItem(previewTarget)}
+                  t={t}
                 />
               ))}
             </div>
           ) : items.length > 0 && searchQuery ? (
             <div className="empty-search-state">
-              <p>No PDF QR codes match "{searchQuery}"</p>
+              <p>{t.empty.noMatch} "{searchQuery}"</p>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => setSearchQuery('')}
               >
-                Clear search filter
+                {t.empty.clearFilter}
               </button>
             </div>
           ) : (
@@ -282,9 +308,9 @@ export function App() {
               <div className="empty-illustration">
                 <QrCode size={56} className="empty-icon" />
               </div>
-              <h3 className="empty-title">No PDF QR Codes Generated Yet</h3>
+              <h3 className="empty-title">{t.empty.title}</h3>
               <p className="empty-subtitle">
-                Drag and drop your PDF files above or click the sample button to generate your first non-expiring QR code.
+                {t.empty.subtitle}
               </p>
             </div>
           )}
@@ -292,16 +318,17 @@ export function App() {
       </main>
 
       {/* Modals */}
-
       <PDFPreviewModal
         item={previewItem}
         onClose={() => setPreviewItem(null)}
+        t={t}
       />
 
       <PrintSheetModal
         items={printItems}
         isOpen={isPrintSheetOpen}
         onClose={() => setIsPrintSheetOpen(false)}
+        t={t}
       />
     </div>
   );

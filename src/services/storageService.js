@@ -200,3 +200,85 @@ export const clearHistory = () => {
   localStorage.removeItem(UPLOAD_HISTORY_KEY);
   return [];
 };
+
+/**
+ * Helper to get storage path from an item
+ */
+export const getStoragePath = (item) => {
+  if (item.storagePath && item.storagePath !== 'local') {
+    return item.storagePath;
+  }
+  if (item.url && item.url.includes('/public/')) {
+    const parts = item.url.split('/public/');
+    if (parts.length > 1) {
+      const sub = parts[1]; // e.g. "pdfs/uploads/123_abc.pdf"
+      const bucket = getStorageConfig().bucketName || 'pdfs';
+      if (sub.startsWith(bucket + '/')) {
+        return decodeURIComponent(sub.substring(bucket.length + 1));
+      }
+      return decodeURIComponent(sub);
+    }
+  }
+  return null;
+};
+
+/**
+ * Delete single PDF from Supabase cloud storage and local history
+ */
+export const deletePdf = async (item) => {
+  if (!item) return getHistory();
+
+  const config = getStorageConfig();
+  const client = getSupabaseClient(config);
+  const bucket = (config.bucketName || 'pdfs').trim();
+  const path = getStoragePath(item);
+
+  if (client && path) {
+    try {
+      const { data, error } = await client.storage.from(bucket).remove([path]);
+      if (error) {
+        console.warn(`Supabase deletion warning for ${path}:`, error.message);
+      } else {
+        console.log(`Deleted ${path} from Supabase bucket "${bucket}"`);
+      }
+    } catch (err) {
+      console.error(`Error deleting file from Supabase:`, err);
+    }
+  }
+
+  return removeItemFromHistory(item.id);
+};
+
+/**
+ * Delete multiple PDFs from Supabase cloud storage and local history
+ */
+export const deleteMultiplePdfs = async (items) => {
+  if (!items || items.length === 0) return getHistory();
+
+  const config = getStorageConfig();
+  const client = getSupabaseClient(config);
+  const bucket = (config.bucketName || 'pdfs').trim();
+
+  const pathsToDelete = items
+    .map(getStoragePath)
+    .filter(Boolean);
+
+  if (client && pathsToDelete.length > 0) {
+    try {
+      const { data, error } = await client.storage.from(bucket).remove(pathsToDelete);
+      if (error) {
+        console.warn('Supabase bulk deletion warning:', error.message);
+      } else {
+        console.log(`Deleted ${pathsToDelete.length} files from Supabase bucket "${bucket}"`);
+      }
+    } catch (err) {
+      console.error('Error during bulk deletion from Supabase:', err);
+    }
+  }
+
+  const idsToRemove = new Set(items.map((x) => x.id));
+  const currentList = getHistory();
+  const updated = currentList.filter((item) => !idsToRemove.has(item.id));
+  localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(updated));
+  return updated;
+};

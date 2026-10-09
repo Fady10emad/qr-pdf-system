@@ -1850,3 +1850,73 @@ body {
   word-break: break-all;
   user-select: all;
 }
+
+/* ==========================================================================
+   Language Switcher & RTL Support
+   ========================================================================== */
+.btn-lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #c7d2fe;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-lang-toggle:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #ffffff;
+}
+.btn-lang-toggle .lang-icon {
+  color: #818cf8;
+}
+
+/* RTL Layout Enhancements */
+html[dir="rtl"] {
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Arial, sans-serif;
+}
+
+html[dir="rtl"] .dropdown-download-group {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+html[dir="rtl"] .btn-action-primary {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+html[dir="rtl"] .btn-action-ghost {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-left: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+html[dir="rtl"] .batch-search-box .search-icon {
+  left: auto;
+  right: 0.75rem;
+}
+
+html[dir="rtl"] .batch-search-box .clear-search-btn {
+  right: auto;
+  left: 0.75rem;
+}
+
+html[dir="rtl"] .batch-search-box .search-input {
+  padding: 0.45rem 2.25rem 0.45rem 2.2rem;
+}
+
+html[dir="rtl"] .action-counter {
+  margin-left: 0;
+  margin-right: 0.2rem;
+}
+
+html[dir="rtl"] .selected-tag {
+  margin-left: 0;
+  margin-right: 0.3rem;
+}
+

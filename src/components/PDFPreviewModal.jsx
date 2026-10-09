@@ -1,8 +1,10 @@
 import React from 'react';
-import { X, Download, ExternalLink, FileText, HardDrive } from 'lucide-react';
+import { X, Download, ExternalLink, FileText } from 'lucide-react';
 
-export const PDFPreviewModal = ({ item, onClose }) => {
+export const PDFPreviewModal = ({ item, onClose, t }) => {
   if (!item) return null;
+
+  const pt = t.previewModal;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -15,7 +17,7 @@ export const PDFPreviewModal = ({ item, onClose }) => {
             <div>
               <h2 className="modal-title">{item.name}</h2>
               <p className="modal-subtitle">
-                {item.size ? (item.size / 1024).toFixed(1) + ' KB' : 'PDF Document'} &bull; Non-Expiring Link
+                {item.size ? (item.size / 1024).toFixed(1) + ' KB' : pt.document} &bull; {pt.nonExpiring}
               </p>
             </div>
           </div>
@@ -26,18 +28,18 @@ export const PDFPreviewModal = ({ item, onClose }) => {
               target="_blank"
               rel="noreferrer"
               className="btn btn-secondary btn-sm"
-              title="Download PDF"
+              title={pt.download}
             >
-              <Download size={15} /> Download
+              <Download size={15} /> {pt.download}
             </a>
             <a
               href={item.url}
               target="_blank"
               rel="noreferrer"
               className="btn btn-secondary btn-sm"
-              title="Open full page"
+              title={pt.openLink}
             >
-              <ExternalLink size={15} /> Open Link
+              <ExternalLink size={15} /> {pt.openLink}
             </a>
             <button type="button" className="modal-close-btn" onClick={onClose}>
               <X size={20} />

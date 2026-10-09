@@ -22,7 +22,9 @@ export const QRCard = ({
   onToggleSelect,
   onDelete,
   onPreview,
+  t,
 }) => {
+  const ct = t.card;
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef(null);
 
@@ -159,7 +161,7 @@ export const QRCard = ({
           type="button"
           className="btn-card-delete"
           onClick={() => onDelete(item.id)}
-          title="Delete this QR record"
+          title={ct.deleteTitle}
         >
           <Trash2 size={16} />
         </button>
@@ -168,12 +170,12 @@ export const QRCard = ({
       {/* Permanence Badge */}
       <div className="card-badge-row">
         {item.isNonExpirable ? (
-          <span className="non-expiring-badge" title="Stored in public cloud storage with permanent direct link">
-            <CheckCircle size={13} /> Non-Expiring Link
+          <span className="non-expiring-badge" title={ct.nonExpiring}>
+            <CheckCircle size={13} /> {ct.nonExpiring}
           </span>
         ) : (
-          <span className="demo-preview-badge" title="Temporary local link. Connect Supabase for permanent access.">
-            <AlertTriangle size={13} /> Local Preview
+          <span className="demo-preview-badge" title={ct.localPreview}>
+            <AlertTriangle size={13} /> {ct.localPreview}
           </span>
         )}
       </div>
@@ -202,7 +204,7 @@ export const QRCard = ({
             }
           />
         </div>
-        <p className="qr-scan-hint">Scan with camera to view PDF</p>
+        <p className="qr-scan-hint">{ct.scanHint}</p>
       </div>
 
       {/* URL Link Box with Quick Copy */}
@@ -219,10 +221,10 @@ export const QRCard = ({
           type="button"
           className={`btn-link-action ${copied ? 'copied' : ''}`}
           onClick={handleCopyLink}
-          title="Copy Link to Clipboard"
+          title={ct.copy}
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
-          <span>{copied ? 'Copied!' : 'Copy'}</span>
+          <span>{copied ? ct.copied : ct.copy}</span>
         </button>
       </div>
 
@@ -232,9 +234,9 @@ export const QRCard = ({
           type="button"
           className="btn-action-outline"
           onClick={() => onPreview(item)}
-          title="Preview this PDF in viewer"
+          title={ct.preview}
         >
-          <Eye size={14} /> Preview
+          <Eye size={14} /> {ct.preview}
         </button>
 
         <a
@@ -242,9 +244,9 @@ export const QRCard = ({
           target="_blank"
           rel="noopener noreferrer"
           className="btn-action-outline"
-          title="Open URL in new tab"
+          title={ct.open}
         >
-          <ExternalLink size={14} /> Open
+          <ExternalLink size={14} /> {ct.open}
         </a>
 
         <div className="dropdown-download-group">
@@ -252,17 +254,17 @@ export const QRCard = ({
             type="button"
             className="btn-action-primary"
             onClick={handleDownloadPng}
-            title="Download crisp High-Resolution PNG (ready for print)"
+            title={ct.pngHd}
           >
-            <Download size={14} /> PNG (HD)
+            <Download size={14} /> {ct.pngHd}
           </button>
           <button
             type="button"
             className="btn-action-ghost"
             onClick={handleDownloadSvg}
-            title="Download scalable vector SVG for print shops"
+            title={ct.svg}
           >
-            SVG
+            {ct.svg}
           </button>
         </div>
       </div>

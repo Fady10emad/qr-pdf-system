@@ -7,6 +7,7 @@ export const DropZone = ({
   uploadingProgress,
   onGenerateDemoPdf,
   onClearProgress,
+  t,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
@@ -41,10 +42,11 @@ export const DropZone = ({
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files);
       onFilesSelected(files);
-      // Reset input value to allow uploading the same file again if needed
       e.target.value = '';
     }
   };
+
+  const dt = t.dropzone;
 
   return (
     <section className="dropzone-section">
@@ -76,37 +78,36 @@ export const DropZone = ({
 
           <div className="dropzone-text-group">
             <h2 className="dropzone-title">
-              {isUploading ? 'Uploading & Generating QR Codes...' : 'Upload PDF Files for Non-Expiring QR Codes'}
+              {isUploading ? dt.uploadingTitle : dt.title}
             </h2>
             <p className="dropzone-subtitle">
-              Drag & drop one or multiple PDF documents here, or{' '}
-              <span className="browse-highlight">browse files from your computer</span>
+              {dt.subtitle}
             </p>
           </div>
 
           <div className="dropzone-badges">
             <span className="badge-tag">
-              <FileText size={13} /> Multiple Files Supported
+              <FileText size={13} /> {dt.multipleSupported}
             </span>
             <span className="badge-tag highlight-green">
-              <CheckCircle2 size={13} /> Permanent Direct Link
+              <CheckCircle2 size={13} /> {dt.permanentLink}
             </span>
             <span className="badge-tag">
-              <Sparkles size={13} /> High-Res Vector QR (Level H)
+              <Sparkles size={13} /> {dt.highResQr}
             </span>
           </div>
 
           {/* Quick Demo Button */}
           {!isUploading && (
             <div className="demo-helper" onClick={(e) => e.stopPropagation()}>
-              <span className="demo-text">Don't have a PDF ready to test?</span>
+              <span className="demo-text">{dt.noPdfReady}</span>
               <button
                 type="button"
                 className="btn-demo"
                 onClick={onGenerateDemoPdf}
-                title="Generates a sample PDF to test the workflow instantly"
+                title={dt.trySample}
               >
-                <Plus size={14} /> Try with Sample PDF
+                <Plus size={14} /> {dt.trySample}
               </button>
             </div>
           )}
@@ -118,7 +119,7 @@ export const DropZone = ({
         <div className="upload-progress-container">
           <div className="progress-section-header">
             <h3 className="progress-section-title">
-              {isUploading ? 'Processing Uploads...' : 'Upload Results'}
+              {isUploading ? dt.processingUploads : dt.uploadResults}
             </h3>
             {!isUploading && (
               <button
@@ -126,7 +127,7 @@ export const DropZone = ({
                 className="btn-clear-progress"
                 onClick={onClearProgress}
               >
-                Dismiss
+                {dt.dismiss}
               </button>
             )}
           </div>
@@ -157,13 +158,13 @@ export const DropZone = ({
                 <div className="progress-status-note">
                   {item.status === 'done' ? (
                     <span className="status-done">
-                      <CheckCircle2 size={14} /> QR Code Generated
+                      <CheckCircle2 size={14} /> {dt.qrGenerated}
                     </span>
                   ) : item.status === 'error' ? (
                     <div className="status-error-block">
                       <div className="status-error-text">
                         <AlertCircle size={15} />
-                        <span>{item.errorMessage || 'Upload failed'}</span>
+                        <span>{item.errorMessage || dt.uploadFailed}</span>
                       </div>
                       {item.errorMessage?.includes('RLS') && (
                         <div className="rls-quick-fix-box">
@@ -178,7 +179,7 @@ export const DropZone = ({
                     </div>
                   ) : (
                     <span className="status-uploading">
-                      <Loader2 size={13} className="spinning" /> {item.statusMessage || 'Uploading...'}
+                      <Loader2 size={13} className="spinning" /> {item.statusMessage || dt.uploading}
                     </span>
                   )}
                 </div>

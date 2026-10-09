@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { X, Printer, LayoutGrid, CheckSquare, Square } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 
-export const PrintSheetModal = ({ items, isOpen, onClose }) => {
+export const PrintSheetModal = ({ items, isOpen, onClose, t }) => {
   const [columns, setColumns] = useState(3);
   const [includeDate, setIncludeDate] = useState(true);
 
@@ -11,6 +11,8 @@ export const PrintSheetModal = ({ items, isOpen, onClose }) => {
   const handlePrint = () => {
     window.print();
   };
+
+  const pmt = t.printModal;
 
   return (
     <div className="modal-backdrop print-modal-backdrop" onClick={onClose}>
@@ -21,17 +23,15 @@ export const PrintSheetModal = ({ items, isOpen, onClose }) => {
               <Printer size={22} className="modal-icon" />
             </div>
             <div>
-              <h2 className="modal-title">Printable QR Sticker Sheet</h2>
-              <p className="modal-subtitle">
-                Print ready labels for stickers, flyers, product tags, or documentation
-              </p>
+              <h2 className="modal-title">{pmt.title}</h2>
+              <p className="modal-subtitle">{pmt.subtitle}</p>
             </div>
           </div>
 
           <div className="header-actions">
             {/* Column Selector */}
             <div className="column-selector">
-              <span className="selector-label">Columns:</span>
+              <span className="selector-label">{pmt.columns}</span>
               <button
                 type="button"
                 className={`btn-col ${columns === 2 ? 'active' : ''}`}
@@ -60,7 +60,7 @@ export const PrintSheetModal = ({ items, isOpen, onClose }) => {
               className="btn btn-primary"
               onClick={handlePrint}
             >
-              <Printer size={16} /> Print Sheet (A4)
+              <Printer size={16} /> {pmt.printBtn}
             </button>
 
             <button type="button" className="modal-close-btn" onClick={onClose}>
@@ -88,7 +88,7 @@ export const PrintSheetModal = ({ items, isOpen, onClose }) => {
                 </div>
                 <div className="sticker-info">
                   <h4 className="sticker-title">{item.name}</h4>
-                  <p className="sticker-hint">Scan with camera to view PDF</p>
+                  <p className="sticker-hint">{pmt.scanHint}</p>
                   {includeDate && (
                     <span className="sticker-date">
                       {new Date(item.createdAt).toLocaleDateString()}

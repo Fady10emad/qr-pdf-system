@@ -10,22 +10,24 @@ const PRESET_COLORS = [
   { name: 'Pure Black', fg: '#000000', bg: '#ffffff' },
 ];
 
-export const QRStylerBar = ({ styleConfig, onChangeStyle }) => {
+export const QRStylerBar = ({ styleConfig, onChangeStyle, t }) => {
+  const st = t.styler;
+
   return (
     <div className="styler-bar-container">
       <div className="styler-bar-header">
         <div className="styler-title-group">
           <Sliders size={18} className="styler-icon" />
-          <h3 className="styler-heading">Global QR Code Customization</h3>
+          <h3 className="styler-heading">{st.heading}</h3>
         </div>
-        <span className="styler-badge">All QR codes adapt live</span>
+        <span className="styler-badge">{st.badge}</span>
       </div>
 
       <div className="styler-controls-row">
         {/* Preset Color Themes */}
         <div className="control-group">
           <label className="control-label">
-            <Palette size={14} /> Color Style
+            <Palette size={14} /> {st.colorStyle}
           </label>
           <div className="color-swatches">
             {PRESET_COLORS.map((preset) => (
@@ -48,7 +50,7 @@ export const QRStylerBar = ({ styleConfig, onChangeStyle }) => {
             ))}
 
             {/* Custom Color Input */}
-            <label className="custom-color-picker-label" title="Custom color picker">
+            <label className="custom-color-picker-label" title={st.customColor}>
               <input
                 type="color"
                 value={styleConfig.fgColor}
@@ -60,7 +62,7 @@ export const QRStylerBar = ({ styleConfig, onChangeStyle }) => {
                 }
                 className="custom-color-input"
               />
-              <span className="custom-color-text">Custom</span>
+              <span className="custom-color-text">{st.customColor}</span>
             </label>
           </div>
         </div>
@@ -68,24 +70,24 @@ export const QRStylerBar = ({ styleConfig, onChangeStyle }) => {
         {/* Error Correction Level */}
         <div className="control-group">
           <label className="control-label">
-            <ShieldCheck size={14} /> Durability / Error Recovery
+            <ShieldCheck size={14} /> {st.durability}
           </label>
           <div className="pill-selector">
             <button
               type="button"
               className={`pill-btn ${styleConfig.level === 'M' ? 'active' : ''}`}
               onClick={() => onChangeStyle({ ...styleConfig, level: 'M' })}
-              title="Level M (15% damage recovery) - Compact"
+              title="Level M"
             >
-              Medium (15%)
+              {st.medium}
             </button>
             <button
               type="button"
               className={`pill-btn ${styleConfig.level === 'H' ? 'active' : ''}`}
               onClick={() => onChangeStyle({ ...styleConfig, level: 'H' })}
-              title="Level H (30% damage recovery) - Recommended for printing"
+              title="Level H"
             >
-              High (30% Best)
+              {st.high}
             </button>
           </div>
         </div>
@@ -93,7 +95,7 @@ export const QRStylerBar = ({ styleConfig, onChangeStyle }) => {
         {/* Center PDF Logo */}
         <div className="control-group">
           <label className="control-label">
-            <Image size={14} /> Center PDF Icon
+            <Image size={14} /> {st.centerLogo}
           </label>
           <label className="toggle-switch">
             <input
@@ -108,14 +110,14 @@ export const QRStylerBar = ({ styleConfig, onChangeStyle }) => {
             />
             <span className="toggle-slider"></span>
             <span className="toggle-label-text">
-              {styleConfig.showCenterLogo ? 'PDF Badge Visible' : 'No Badge'}
+              {styleConfig.showCenterLogo ? st.logoVisible : st.noLogo}
             </span>
           </label>
         </div>
 
         {/* Export Resolution */}
         <div className="control-group">
-          <label className="control-label">Download Quality</label>
+          <label className="control-label">{st.downloadQuality}</label>
           <select
             className="select-input"
             value={styleConfig.exportSize}
@@ -126,9 +128,9 @@ export const QRStylerBar = ({ styleConfig, onChangeStyle }) => {
               })
             }
           >
-            <option value={512}>Standard HD (512x512)</option>
-            <option value={1024}>Ultra HD Print (1024x1024)</option>
-            <option value={2048}>Master Vector (2048x2048)</option>
+            <option value={512}>{st.qualityStandard}</option>
+            <option value={1024}>{st.qualityPrint}</option>
+            <option value={2048}>{st.qualityMaster}</option>
           </select>
         </div>
       </div>
