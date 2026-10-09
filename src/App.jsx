@@ -64,7 +64,7 @@ export function App() {
     fgColor: '#0f172a',
     bgColor: '#ffffff',
     level: 'H', // High error correction
-    showCenterLogo: true,
+    showCenterLogo: false,
     exportSize: 1024,
   });
 
