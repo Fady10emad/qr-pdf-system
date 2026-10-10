@@ -7,25 +7,33 @@ export const SYSTEM_DEFAULT_CONFIG = {
   bucketName: import.meta.env?.VITE_SUPABASE_BUCKET || 'pdfs',
 };
 
+let _supabaseClientInstance = null;
+
 export const getSupabaseClient = () => {
+  if (_supabaseClientInstance) return _supabaseClientInstance;
   if (!SYSTEM_DEFAULT_CONFIG.supabaseUrl || !SYSTEM_DEFAULT_CONFIG.supabaseAnonKey) {
     return null;
   }
   try {
-    return createClient(SYSTEM_DEFAULT_CONFIG.supabaseUrl.trim(), SYSTEM_DEFAULT_CONFIG.supabaseAnonKey.trim(), {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-      global: {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+    _supabaseClientInstance = createClient(
+      SYSTEM_DEFAULT_CONFIG.supabaseUrl.trim(),
+      SYSTEM_DEFAULT_CONFIG.supabaseAnonKey.trim(),
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
         },
-      },
-    });
+        global: {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        },
+      }
+    );
+    return _supabaseClientInstance;
   } catch (err) {
     console.error('Error creating Supabase client:', err);
     return null;
