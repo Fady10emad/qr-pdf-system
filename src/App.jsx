@@ -9,9 +9,7 @@ import { PDFPreviewModal } from './components/PDFPreviewModal';
 import { PrintSheetModal } from './components/PrintSheetModal';
 import { DeleteWarningModal } from './components/DeleteWarningModal';
 import {
-  getHistory,
   fetchPdfs,
-  clearHistory,
   uploadPdf,
   deletePdf,
   deleteMultiplePdfs,
@@ -27,13 +25,9 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingCloud, setIsLoadingCloud] = useState(true);
 
-  // Language State: 'en' or 'ar'
+  // Language State: 'en' or 'ar' (Zero caching, default 'en')
   const [language, setLanguage] = useState(() => {
-    try {
-      return localStorage.getItem('pdf_qr_lang') || 'en';
-    } catch {
-      return 'en';
-    }
+    return typeof navigator !== 'undefined' && navigator.language?.startsWith('ar') ? 'ar' : 'en';
   });
 
   const t = translations[language] || translations.en;
@@ -42,11 +36,6 @@ export function App() {
   useEffect(() => {
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = language;
-    try {
-      localStorage.setItem('pdf_qr_lang', language);
-    } catch (e) {
-      console.warn(e);
-    }
   }, [language]);
 
   const handleToggleLanguage = () => {
@@ -78,25 +67,19 @@ export function App() {
     exportSize: 1024,
   });
 
-  // Fetch from Supabase Cloud on mount (synchronized across all devices!)
+  // Fetch directly from Supabase Cloud on mount (NO LOCAL CACHING)
   useEffect(() => {
     let isMounted = true;
-    
-    // 1. Show cached items immediately for zero latency
-    const cached = getHistory();
-    if (cached && cached.length > 0) {
-      setItems(cached);
-    }
+    setIsLoadingCloud(true);
 
-    // 2. Fetch live database & storage records from Supabase
     fetchPdfs()
       .then((cloudItems) => {
-        if (isMounted && cloudItems) {
-          setItems(cloudItems);
+        if (isMounted) {
+          setItems(cloudItems || []);
         }
       })
       .catch((err) => {
-        console.warn('Could not fetch cloud PDFs:', err);
+        console.error('Could not fetch cloud PDFs:', err);
       })
       .finally(() => {
         if (isMounted) {
@@ -246,22 +229,36 @@ export function App() {
     });
   };
 
-  // Confirmed Delete Execution (removes from Supabase database & storage!)
+  // Direct Cloud Refresh (bypasses any stale states)
+  const handleRefreshCloud = async () => {
+    setIsLoadingCloud(true);
+    try {
+      const cloudItems = await fetchPdfs();
+      setItems(cloudItems || []);
+    } catch (err) {
+      console.error('Could not refresh cloud PDFs:', err);
+    } finally {
+      setIsLoadingCloud(false);
+    }
+  };
+
+  // Confirmed Delete Execution (removes directly from Supabase database & storage with zero local caching!)
   const handleConfirmDelete = async () => {
     if (deleteModalState.isClearAll) {
-      await deleteMultiplePdfs(items);
-      clearHistory();
+      const allItems = [...items];
       setItems([]);
       setSelectedIds([]);
+      await deleteMultiplePdfs(allItems);
     } else if (deleteModalState.isBatch) {
       const targets = items.filter((x) => selectedIds.includes(x.id));
-      const updated = await deleteMultiplePdfs(targets);
-      setItems(updated);
+      setItems((prev) => prev.filter((x) => !selectedIds.includes(x.id)));
       setSelectedIds([]);
+      await deleteMultiplePdfs(targets);
     } else if (deleteModalState.item) {
-      const updated = await deletePdf(deleteModalState.item);
-      setItems(updated);
-      setSelectedIds((prev) => prev.filter((x) => x !== deleteModalState.item.id));
+      const targetItem = deleteModalState.item;
+      setItems((prev) => prev.filter((x) => x.id !== targetItem.id));
+      setSelectedIds((prev) => prev.filter((x) => x !== targetItem.id));
+      await deletePdf(targetItem);
     }
   };
 
@@ -296,6 +293,8 @@ export function App() {
         selectedCount={selectedIds.length}
         language={language}
         onToggleLanguage={handleToggleLanguage}
+        onRefreshCloud={handleRefreshCloud}
+        isLoadingCloud={isLoadingCloud}
         t={t}
       />
 

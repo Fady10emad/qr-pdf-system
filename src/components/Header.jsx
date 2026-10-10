@@ -1,5 +1,5 @@
 import React from 'react';
-import { QrCode, Cloud, Printer, Download, Globe } from 'lucide-react';
+import { QrCode, Cloud, Printer, Download, Globe, RefreshCw } from 'lucide-react';
 
 export const Header = ({
   onOpenPrintSheet,
@@ -8,6 +8,8 @@ export const Header = ({
   selectedCount,
   language,
   onToggleLanguage,
+  onRefreshCloud,
+  isLoadingCloud,
   t,
 }) => {
   return (
@@ -38,6 +40,18 @@ export const Header = ({
             <Cloud size={16} />
             <span className="status-label">{t.brand.cloudActive}</span>
           </div>
+
+          {/* Live Cloud Refresh (Direct un-cached sync) */}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onRefreshCloud}
+            disabled={isLoadingCloud}
+            title={t.brand.syncCloud}
+          >
+            <RefreshCw size={16} className={isLoadingCloud ? 'spinning' : ''} />
+            <span className="btn-text">{t.brand.syncCloud}</span>
+          </button>
 
           {/* Language Switcher */}
           <button
