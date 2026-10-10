@@ -49,42 +49,99 @@ export const getSupabaseClient = (customConfig = null) => {
 };
 
 /**
- * Tests connection to Supabase storage bucket
+ * Fetch all PDFs from Supabase Cloud Database & Storage
+ * Ensures PDFs are synchronized across ALL devices and browsers!
  */
-export const testStorageConnection = async (config) => {
-  if (!config.supabaseUrl || !config.supabaseAnonKey) {
-    return { success: false, message: 'Please provide both Project URL and Anon Public Key.' };
+export const fetchPdfs = async () => {
+  const config = getStorageConfig();
+  const client = getSupabaseClient(config);
+  const bucket = (config.bucketName || 'pdfs').trim();
+
+  if (!client) {
+    return getHistory();
   }
 
+  // 1. Try to fetch from Supabase Postgres Database Table 'pdf_qr_codes'
   try {
-    const client = createClient(config.supabaseUrl.trim(), config.supabaseAnonKey.trim(), {
-      auth: { persistSession: false },
-    });
-    const bucket = (config.bucketName || 'pdfs').trim();
+    const { data, error } = await client
+      .from('pdf_qr_codes')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    // Check if bucket exists or list contents
-    const { data, error } = await client.storage.from(bucket).list('', { limit: 1 });
-    if (error) {
-      return {
-        success: false,
-        message: `Connected to Supabase, but bucket "${bucket}" error: ${error.message}. Ensure the bucket exists and is set to Public!`,
-      };
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const items = data.map((row) => ({
+        id: row.id,
+        name: row.name,
+        size: row.size ? Number(row.size) : 0,
+        url: row.url,
+        storagePath: row.storage_path,
+        storageType: 'supabase',
+        bucket,
+        isNonExpirable: true,
+        createdAt: row.created_at || new Date().toISOString(),
+      }));
+
+      // Cache locally
+      localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(items));
+      return items;
     }
-
-    return {
-      success: true,
-      message: `Successfully connected to bucket "${bucket}"! Your QR codes will be permanent and non-expiring.`,
-    };
   } catch (err) {
-    return {
-      success: false,
-      message: `Connection failed: ${err.message || 'Check your URL and Key.'}`,
-    };
+    console.warn('Database table fetch warning:', err.message);
   }
+
+  // 2. Storage Bucket Fallback: List files directly from bucket 'uploads' folder!
+  // This ensures files are accessible on ANY device even before the database table is created!
+  try {
+    const { data: storageFiles, error: storageErr } = await client.storage
+      .from(bucket)
+      .list('uploads', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+
+    if (!storageErr && Array.isArray(storageFiles) && storageFiles.length > 0) {
+      const cached = getHistory();
+      const cachedMap = new Map(cached.map((c) => [c.storagePath, c]));
+
+      const items = storageFiles
+        .filter((file) => file.name && !file.name.startsWith('.'))
+        .map((file) => {
+          const filePath = `uploads/${file.name}`;
+          const { data: publicData } = client.storage.from(bucket).getPublicUrl(filePath);
+
+          const existing = cachedMap.get(filePath);
+          let displayName = existing?.name;
+          if (!displayName) {
+            // Strip timestamp: 1791507785555_name.pdf -> name.pdf
+            const parts = file.name.split('_');
+            displayName = parts.length > 1 ? parts.slice(1).join('_') : file.name;
+          }
+
+          return {
+            id: existing?.id || 'pdf_' + (file.id || file.name),
+            name: displayName,
+            size: file.metadata?.size || existing?.size || 0,
+            url: publicData.publicUrl,
+            storagePath: filePath,
+            storageType: 'supabase',
+            bucket,
+            isNonExpirable: true,
+            createdAt: file.created_at || existing?.createdAt || new Date().toISOString(),
+          };
+        });
+
+      if (items.length > 0) {
+        localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(items));
+        return items;
+      }
+    }
+  } catch (err) {
+    console.warn('Storage list fallback warning:', err.message);
+  }
+
+  // 3. Fallback to localStorage cache
+  return getHistory();
 };
 
 /**
- * Upload single PDF file
+ * Upload single PDF file to Supabase Cloud Storage & Database
  */
 export const uploadPdf = async (file, onProgress) => {
   if (!file || file.type !== 'application/pdf') {
@@ -98,39 +155,60 @@ export const uploadPdf = async (file, onProgress) => {
   const id = 'pdf_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const filePath = `uploads/${Date.now()}_${safeName}`;
+  const createdAt = new Date().toISOString();
 
   if (client) {
     if (onProgress) onProgress(20);
 
-    const { data, error } = await client.storage.from(bucket).upload(filePath, file, {
-      contentType: 'application/pdf',
-      upsert: true,
-    });
+    // 1. Upload the physical PDF file to Supabase Storage bucket
+    const { data: uploadData, error: uploadError } = await client.storage
+      .from(bucket)
+      .upload(filePath, file, {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
 
-    if (error) {
-      console.error('Supabase upload error details:', error);
+    if (uploadError) {
+      console.error('Supabase upload error details:', uploadError);
       if (
-        error.message?.toLowerCase().includes('row-level security') ||
-        error.message?.toLowerCase().includes('policy') ||
-        error.message?.toLowerCase().includes('violates') ||
-        error.statusCode === '403' ||
-        error.statusCode === 403
+        uploadError.message?.toLowerCase().includes('row-level security') ||
+        uploadError.message?.toLowerCase().includes('policy') ||
+        uploadError.message?.toLowerCase().includes('violates') ||
+        uploadError.statusCode === '403' ||
+        uploadError.statusCode === 403
       ) {
         throw new Error(
           `Supabase blocked upload (RLS Policy): Anonymous uploads need permission on the '${bucket}' bucket. Run the quick SQL fix in Supabase SQL editor!`
         );
       }
-      throw new Error(`Supabase upload failed: ${error.message}`);
+      throw new Error(`Supabase upload failed: ${uploadError.message}`);
     }
 
-    if (onProgress) onProgress(80);
+    if (onProgress) onProgress(75);
 
+    // 2. Get permanent CDN URL
     const { data: publicData } = client.storage.from(bucket).getPublicUrl(filePath);
     const finalUrl = publicData.publicUrl;
 
+    // 3. Insert record into Supabase Database table 'pdf_qr_codes'
+    try {
+      await client.from('pdf_qr_codes').insert([
+        {
+          id,
+          name: file.name,
+          size: file.size,
+          url: finalUrl,
+          storage_path: filePath,
+          created_at: createdAt,
+        },
+      ]);
+    } catch (dbErr) {
+      console.warn('Could not insert record into database table (table may need creation):', dbErr);
+    }
+
     if (onProgress) onProgress(100);
 
-    return {
+    const item = {
       id,
       name: file.name,
       size: file.size,
@@ -139,15 +217,18 @@ export const uploadPdf = async (file, onProgress) => {
       storageType: 'supabase',
       bucket,
       isNonExpirable: true,
-      createdAt: new Date().toISOString(),
+      createdAt,
     };
+
+    saveItemToHistory(item);
+    return item;
   } else {
-    // Local preview fallback mode (when cloud credentials not yet entered)
+    // Local preview fallback mode
     if (onProgress) onProgress(50);
     const blobUrl = URL.createObjectURL(file);
     if (onProgress) onProgress(100);
 
-    return {
+    const item = {
       id,
       name: file.name,
       size: file.size,
@@ -156,14 +237,17 @@ export const uploadPdf = async (file, onProgress) => {
       storageType: 'local-demo',
       bucket: 'local-memory',
       isNonExpirable: false,
-      createdAt: new Date().toISOString(),
+      createdAt,
       note: 'Local preview QR code. For non-expiring worldwide access, connect your free Supabase storage.',
     };
+
+    saveItemToHistory(item);
+    return item;
   }
 };
 
 /**
- * History Management in LocalStorage
+ * LocalStorage Cache Helpers
  */
 export const getHistory = () => {
   try {
@@ -178,13 +262,6 @@ export const getHistory = () => {
 export const saveItemToHistory = (item) => {
   const list = getHistory();
   const updated = [item, ...list.filter((x) => x.id !== item.id)];
-  localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(updated));
-  return updated;
-};
-
-export const saveMultipleToHistory = (newItems) => {
-  const list = getHistory();
-  const updated = [...newItems, ...list];
   localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(updated));
   return updated;
 };
@@ -223,7 +300,7 @@ export const getStoragePath = (item) => {
 };
 
 /**
- * Delete single PDF from Supabase cloud storage and local history
+ * Delete single PDF from Supabase cloud database & storage
  */
 export const deletePdf = async (item) => {
   if (!item) return getHistory();
@@ -233,16 +310,30 @@ export const deletePdf = async (item) => {
   const bucket = (config.bucketName || 'pdfs').trim();
   const path = getStoragePath(item);
 
-  if (client && path) {
+  if (client) {
+    // 1. Delete record from Supabase database table 'pdf_qr_codes'
     try {
-      const { data, error } = await client.storage.from(bucket).remove([path]);
-      if (error) {
-        console.warn(`Supabase deletion warning for ${path}:`, error.message);
-      } else {
-        console.log(`Deleted ${path} from Supabase bucket "${bucket}"`);
+      await client
+        .from('pdf_qr_codes')
+        .delete()
+        .or(`id.eq.${item.id},storage_path.eq.${path}`);
+      console.log(`Deleted record from database table: ${item.id}`);
+    } catch (dbErr) {
+      console.warn('Database table delete notice:', dbErr.message);
+    }
+
+    // 2. Delete the actual PDF file from Supabase Storage bucket
+    if (path) {
+      try {
+        const { data, error } = await client.storage.from(bucket).remove([path]);
+        if (error) {
+          console.warn(`Supabase storage deletion warning for ${path}:`, error.message);
+        } else {
+          console.log(`Deleted file ${path} from Supabase storage bucket "${bucket}"`);
+        }
+      } catch (err) {
+        console.error(`Error deleting file from Supabase storage:`, err);
       }
-    } catch (err) {
-      console.error(`Error deleting file from Supabase:`, err);
     }
   }
 
@@ -250,7 +341,7 @@ export const deletePdf = async (item) => {
 };
 
 /**
- * Delete multiple PDFs from Supabase cloud storage and local history
+ * Delete multiple PDFs from Supabase cloud database & storage
  */
 export const deleteMultiplePdfs = async (items) => {
   if (!items || items.length === 0) return getHistory();
@@ -259,24 +350,37 @@ export const deleteMultiplePdfs = async (items) => {
   const client = getSupabaseClient(config);
   const bucket = (config.bucketName || 'pdfs').trim();
 
-  const pathsToDelete = items
-    .map(getStoragePath)
-    .filter(Boolean);
+  const pathsToDelete = items.map(getStoragePath).filter(Boolean);
+  const idsToDelete = items.map((x) => x.id);
 
-  if (client && pathsToDelete.length > 0) {
+  if (client) {
+    // 1. Delete rows from Supabase database table
     try {
-      const { data, error } = await client.storage.from(bucket).remove(pathsToDelete);
-      if (error) {
-        console.warn('Supabase bulk deletion warning:', error.message);
-      } else {
-        console.log(`Deleted ${pathsToDelete.length} files from Supabase bucket "${bucket}"`);
+      await client
+        .from('pdf_qr_codes')
+        .delete()
+        .in('id', idsToDelete);
+      console.log(`Deleted ${idsToDelete.length} records from Supabase database`);
+    } catch (dbErr) {
+      console.warn('Database bulk delete notice:', dbErr.message);
+    }
+
+    // 2. Delete files from Supabase storage bucket
+    if (pathsToDelete.length > 0) {
+      try {
+        const { data, error } = await client.storage.from(bucket).remove(pathsToDelete);
+        if (error) {
+          console.warn('Supabase bulk deletion warning:', error.message);
+        } else {
+          console.log(`Deleted ${pathsToDelete.length} files from Supabase bucket "${bucket}"`);
+        }
+      } catch (err) {
+        console.error('Error during bulk deletion from Supabase:', err);
       }
-    } catch (err) {
-      console.error('Error during bulk deletion from Supabase:', err);
     }
   }
 
-  const idsToRemove = new Set(items.map((x) => x.id));
+  const idsToRemove = new Set(idsToDelete);
   const currentList = getHistory();
   const updated = currentList.filter((item) => !idsToRemove.has(item.id));
   localStorage.setItem(UPLOAD_HISTORY_KEY, JSON.stringify(updated));

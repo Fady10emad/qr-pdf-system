@@ -7,9 +7,10 @@ import { QRCard } from './components/QRCard';
 import { BatchActionsBar } from './components/BatchActionsBar';
 import { PDFPreviewModal } from './components/PDFPreviewModal';
 import { PrintSheetModal } from './components/PrintSheetModal';
+import { DeleteWarningModal } from './components/DeleteWarningModal';
 import {
   getHistory,
-  saveItemToHistory,
+  fetchPdfs,
   clearHistory,
   uploadPdf,
   deletePdf,
@@ -18,12 +19,13 @@ import {
 import { downloadItemsAsZip } from './utils/zipExport';
 import { createSamplePdfFile } from './utils/demoPdf';
 import { translations } from './utils/translations';
-import { QrCode } from 'lucide-react';
+import { QrCode, Loader2 } from 'lucide-react';
 
 export function App() {
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoadingCloud, setIsLoadingCloud] = useState(true);
 
   // Language State: 'en' or 'ar'
   const [language, setLanguage] = useState(() => {
@@ -55,6 +57,14 @@ export function App() {
   const [isPrintSheetOpen, setIsPrintSheetOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
 
+  // Delete Warning Modal State
+  const [deleteModalState, setDeleteModalState] = useState({
+    isOpen: false,
+    item: null,
+    isBatch: false,
+    isClearAll: false,
+  });
+
   // Upload state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingProgress, setUploadingProgress] = useState([]);
@@ -68,10 +78,35 @@ export function App() {
     exportSize: 1024,
   });
 
-  // Load history on mount
+  // Fetch from Supabase Cloud on mount (synchronized across all devices!)
   useEffect(() => {
-    const list = getHistory();
-    setItems(list);
+    let isMounted = true;
+    
+    // 1. Show cached items immediately for zero latency
+    const cached = getHistory();
+    if (cached && cached.length > 0) {
+      setItems(cached);
+    }
+
+    // 2. Fetch live database & storage records from Supabase
+    fetchPdfs()
+      .then((cloudItems) => {
+        if (isMounted && cloudItems) {
+          setItems(cloudItems);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch cloud PDFs:', err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingCloud(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Trigger celebration confetti
@@ -126,7 +161,6 @@ export function App() {
         });
 
         newlyCreated.push(result);
-        saveItemToHistory(result);
 
         setUploadingProgress((prev) =>
           prev.map((item, idx) =>
@@ -151,12 +185,13 @@ export function App() {
       }
     }
 
-    setItems(getHistory());
-    setIsUploading(false);
-
+    // Refresh state with new items
     if (newlyCreated.length > 0) {
+      setItems((prev) => [...newlyCreated, ...prev]);
       triggerConfetti();
     }
+
+    setIsUploading(false);
   };
 
   // Generate a sample demo PDF for instant testing
@@ -180,29 +215,53 @@ export function App() {
     setSelectedIds([]);
   };
 
-  // Delete handlers (with cloud delete)
-  const handleDeleteItem = async (id) => {
+  // Delete Prompt Handlers (triggers Warning Modal)
+  const handlePromptDeleteSingle = (id) => {
     const target = items.find((x) => x.id === id);
-    const updated = await deletePdf(target);
-    setItems(updated);
-    setSelectedIds((prev) => prev.filter((x) => x !== id));
-  };
-
-  const handleDeleteSelected = async () => {
-    if (window.confirm(t.card.confirmDeleteMultiple)) {
-      const targets = items.filter((x) => selectedIds.includes(x.id));
-      const updated = await deleteMultiplePdfs(targets);
-      setItems(updated);
-      setSelectedIds([]);
+    if (target) {
+      setDeleteModalState({
+        isOpen: true,
+        item: target,
+        isBatch: false,
+        isClearAll: false,
+      });
     }
   };
 
-  const handleClearAll = async () => {
-    if (window.confirm(t.card.confirmClearAll)) {
+  const handlePromptDeleteSelected = () => {
+    setDeleteModalState({
+      isOpen: true,
+      item: null,
+      isBatch: true,
+      isClearAll: false,
+    });
+  };
+
+  const handlePromptClearAll = () => {
+    setDeleteModalState({
+      isOpen: true,
+      item: null,
+      isBatch: false,
+      isClearAll: true,
+    });
+  };
+
+  // Confirmed Delete Execution (removes from Supabase database & storage!)
+  const handleConfirmDelete = async () => {
+    if (deleteModalState.isClearAll) {
       await deleteMultiplePdfs(items);
       clearHistory();
       setItems([]);
       setSelectedIds([]);
+    } else if (deleteModalState.isBatch) {
+      const targets = items.filter((x) => selectedIds.includes(x.id));
+      const updated = await deleteMultiplePdfs(targets);
+      setItems(updated);
+      setSelectedIds([]);
+    } else if (deleteModalState.item) {
+      const updated = await deletePdf(deleteModalState.item);
+      setItems(updated);
+      setSelectedIds((prev) => prev.filter((x) => x !== deleteModalState.item.id));
     }
   };
 
@@ -268,8 +327,8 @@ export function App() {
               onSearchChange={setSearchQuery}
               onSelectAll={handleSelectAll}
               onDeselectAll={handleDeselectAll}
-              onDeleteSelected={handleDeleteSelected}
-              onClearAll={handleClearAll}
+              onDeleteSelected={handlePromptDeleteSelected}
+              onClearAll={handlePromptClearAll}
               onPrintSelected={handlePrintSheet}
               onDownloadSelectedZip={handleDownloadZipAll}
               t={t}
@@ -286,7 +345,7 @@ export function App() {
                   styleConfig={styleConfig}
                   isSelected={selectedIds.includes(item.id)}
                   onToggleSelect={handleToggleSelect}
-                  onDelete={handleDeleteItem}
+                  onDelete={handlePromptDeleteSingle}
                   onPreview={(previewTarget) => setPreviewItem(previewTarget)}
                   t={t}
                 />
@@ -306,11 +365,19 @@ export function App() {
           ) : (
             <div className="empty-collection-state">
               <div className="empty-illustration">
-                <QrCode size={56} className="empty-icon" />
+                {isLoadingCloud ? (
+                  <Loader2 size={56} className="empty-icon spinning" />
+                ) : (
+                  <QrCode size={56} className="empty-icon" />
+                )}
               </div>
-              <h3 className="empty-title">{t.empty.title}</h3>
+              <h3 className="empty-title">
+                {isLoadingCloud ? 'Syncing with Supabase...' : t.empty.title}
+              </h3>
               <p className="empty-subtitle">
-                {t.empty.subtitle}
+                {isLoadingCloud
+                  ? 'Loading your cloud stored PDFs from Supabase database...'
+                  : t.empty.subtitle}
               </p>
             </div>
           )}
@@ -328,6 +395,25 @@ export function App() {
         items={printItems}
         isOpen={isPrintSheetOpen}
         onClose={() => setIsPrintSheetOpen(false)}
+        t={t}
+      />
+
+      {/* Delete Warning Modal with Permanent Removal Notice */}
+      <DeleteWarningModal
+        isOpen={deleteModalState.isOpen}
+        onClose={() =>
+          setDeleteModalState({
+            isOpen: false,
+            item: null,
+            isBatch: false,
+            isClearAll: false,
+          })
+        }
+        onConfirm={handleConfirmDelete}
+        targetItem={deleteModalState.item}
+        selectedCount={selectedIds.length}
+        isBatch={deleteModalState.isBatch}
+        isClearAll={deleteModalState.isClearAll}
         t={t}
       />
     </div>
